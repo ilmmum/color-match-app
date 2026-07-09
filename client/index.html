@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Color Match Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; background: #1a1a2e; color: white; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    h1 { font-size: 2.5rem; margin-bottom: 10px; color: #e94560; }
+    p { color: #aaa; margin-bottom: 30px; }
+    #color-display { width: 200px; height: 200px; border-radius: 50%; margin: 20px auto; border: 4px solid white; }
+    #color-name { font-size: 2rem; font-weight: bold; margin: 20px 0; letter-spacing: 3px; }
+    #buttons { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; margin: 20px 0; }
+    .color-btn { width: 80px; height: 80px; border-radius: 50%; border: 3px solid white; cursor: pointer; transition: transform 0.2s; }
+    .color-btn:hover { transform: scale(1.1); }
+    #feedback { font-size: 1.5rem; font-weight: bold; margin: 15px 0; min-height: 40px; }
+    #score-display { font-size: 1.2rem; margin: 10px 0; }
+    input { padding: 10px 20px; border-radius: 25px; border: none; font-size: 1rem; margin: 5px; }
+    button#save-btn { padding: 10px 25px; border-radius: 25px; border: none; background: #e94560; color: white; font-size: 1rem; cursor: pointer; margin: 5px; }
+    button#save-btn:hover { background: #c73652; }
+    #leaderboard { margin-top: 30px; width: 300px; background: #16213e; border-radius: 15px; padding: 20px; }
+    #leaderboard h2 { text-align: center; margin-bottom: 15px; color: #e94560; }
+    .score-entry { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #333; }
+    #next-btn { padding: 10px 30px; border-radius: 25px; border: none; background: #0f3460; color: white; font-size: 1rem; cursor: pointer; margin-top: 10px; }
+    #next-btn:hover { background: #1a5276; }
+  </style>
+</head>
+<body>
+  <h1>🎨 Color Match</h1>
+  <p>Match the color shown to its name!</p>
+  <div id="color-display"></div>
+  <div id="color-name"></div>
+  <div id="buttons"></div>
+  <div id="feedback"></div>
+  <div id="score-display">Score: 0</div>
+  <button id="next-btn">Next Round</button>
+  <div style="margin-top:20px;">
+    <input type="text" id="player-name" placeholder="Enter your name" />
+    <button id="save-btn">Save Score</button>
+  </div>
+  <div id="leaderboard">
+    <h2>🏆 Leaderboard Score-Board</h2>
+    <div id="scores-list">Loading...</div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:5000/api';
+
+    const colors = [
+      { name: 'RED',    hex: '#e74c3c' },
+      { name: 'BLUE',   hex: '#3498db' },
+      { name: 'GREEN',  hex: '#2ecc71' },
+      { name: 'YELLOW', hex: '#f1c40f' },
+      { name: 'PURPLE', hex: '#9b59b6' },
+      { name: 'ORANGE', hex: '#e67e22' }
+    ];
+
+    let score = 0;
+    let correctColor = null;
+
+    function shuffle(arr) {
+      return [...arr].sort(() => Math.random() - 0.5);
+    }
+
+    function newRound() {
+      document.getElementById('feedback').textContent = '';
+      const shuffled = shuffle(colors);
+      correctColor = shuffled[0];
+      const options = shuffled.slice(0, 4);
+
+      document.getElementById('color-display').style.background = correctColor.hex;
+      document.getElementById('color-name').textContent = shuffle(options)[0].name === correctColor.name
+        ? shuffle(colors.filter(c => c.name !== correctColor.name))[0].name
+        : shuffle(options)[0].name;
+
+      const wrongName = document.getElementById('color-name').textContent;
+      document.getElementById('color-name').textContent = correctColor.name;
+      document.getElementById('color-display').style.background = colors.find(c => c.name === wrongName)?.hex || correctColor.hex;
+
+      const displayedColorName = document.getElementById('color-name').textContent;
+      const displayedColor = colors.find(c => c.name === displayedColorName);
+      correctColor = displayedColor;
+
+      const btnOptions = shuffle(colors).slice(0, 4);
+      if (!btnOptions.find(c => c.name === displayedColorName)) {
+        btnOptions[0] = displayedColor;
+      }
+
+      const container = document.getElementById('buttons');
+      container.innerHTML = '';
+      shuffle(btnOptions).forEach(color => {
+        const btn = document.createElement('button');
+        btn.className = 'color-btn';
+        btn.style.background = color.hex;
+        btn.title = color.name;
+        btn.onclick = () => checkAnswer(color.name);
+        container.appendChild(btn);
+      });
+
+      loadScores();
+    }
+
+    function checkAnswer(chosen) {
+      const feedback = document.getElementById('feedback');
+      if (chosen === correctColor.name) {
+        score++;
+        feedback.textContent = '✅ Correct!';
+        feedback.style.color = '#2ecc71';
+      } else {
+        feedback.textContent = `❌ Wrong! It was ${correctColor.name}`;
+        feedback.style.color = '#e74c3c';
+      }
+      document.getElementById('score-display').textContent = `Score: ${score}`;
+    }
+
+    async function saveScore() {
+      const playerName = document.getElementById('player-name').value.trim();
+      if (!playerName) { alert('Please enter your name first!'); return; }
+      try {
+        await fetch(`${API}/scores`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerName, score })
+        });
+        score = 0;
+        document.getElementById('score-display').textContent = 'Score: 0';
+        document.getElementById('player-name').value = '';
+        loadScores();
+        alert('Score saved!');
+      } catch (err) {
+        alert('Failed to save score. Is the backend running?');
+      }
+    }
+
+    async function loadScores() {
+      try {
+        const res = await fetch(`${API}/scores`);
+        const data = await res.json();
+        const list = document.getElementById('scores-list');
+        if (data.data.length === 0) {
+          list.innerHTML = '<p style="text-align:center;color:#aaa">No scores yet!</p>';
+          return;
+        }
+        list.innerHTML = data.data.slice(0, 5).map((s, i) =>
+          `<div class="score-entry"><span>${i + 1}. ${s.playerName}</span><span>${s.score} pts</span></div>`
+        ).join('');
+      } catch (err) {
+        document.getElementById('scores-list').innerHTML = '<p style="color:#e74c3c">Cannot reach backend</p>';
+      }
+    }
+
+    document.getElementById('next-btn').onclick = newRound;
+    document.getElementById('save-btn').onclick = saveScore;
+
+    newRound();
+  </script>
+</body>
+</html>

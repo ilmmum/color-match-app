@@ -1,0 +1,44 @@
+services:
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    networks:
+      - color-network
+    volumes:
+    - mongodb-data:/data/db
+
+  backend:
+    build: ./server
+    container_name: color-backend
+    restart: always
+    env_file:
+      - ./server/.env
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongodb
+    networks:
+      - color-network
+
+  frontend:
+    build: ./client
+    container_name: color-frontend
+    restart: always
+    ports:
+      - "8090:80"
+    depends_on:
+      - backend
+    networks:
+      - color-network
+
+networks:
+  color-network:
+    driver: bridge
+
+volumes:
+  mongodb-data:
+    driver: local
